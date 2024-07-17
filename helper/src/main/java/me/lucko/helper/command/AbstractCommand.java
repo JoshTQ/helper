@@ -28,32 +28,29 @@ package me.lucko.helper.command;
 import me.lucko.helper.command.context.CommandContext;
 import me.lucko.helper.command.context.ImmutableCommandContext;
 import me.lucko.helper.internal.LoaderUtils;
-import me.lucko.helper.timings.Timings;
 import me.lucko.helper.utils.CommandMapUtil;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-
-import co.aikar.timings.lib.MCTiming;
-
-import java.util.Arrays;
+import org.bukkit.command.TabCompleter;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * An abstract implementation of {@link Command} and {@link CommandExecutor}
  */
 @NonnullByDefault
-public abstract class AbstractCommand implements Command, CommandExecutor {
+public abstract class AbstractCommand implements Command, CommandExecutor, TabCompleter {
 
-    @Nullable
-    private MCTiming timing = null;
+    protected @Nullable String permission;
+    protected @Nullable String permissionMessage;
+    protected @Nullable String description;
 
     @Override
     public void register(String... aliases) {
-        LoaderUtils.getPlugin().registerCommand(this, aliases);
-        this.timing = Timings.of("helper-commands: " + Arrays.toString(aliases));
+        LoaderUtils.getPlugin().registerCommand(this, permission, permissionMessage, description, aliases);
     }
 
     @Override
@@ -63,25 +60,23 @@ public abstract class AbstractCommand implements Command, CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        CommandContext<CommandSender> context = new ImmutableCommandContext<>(sender, label, args, command.getAliases());
         try {
-            if (this.timing != null) {
-                this.timing.startTiming();
-            }
-
-            CommandContext<CommandSender> context = new ImmutableCommandContext<>(sender, label, args);
-
-            try {
-                //noinspection unchecked
-                call(context);
-            } catch (CommandInterruptException e) {
-                e.getAction().accept(context.sender());
-            }
-
-            return true;
-        } finally {
-            if (this.timing != null) {
-                this.timing.stopTiming();
-            }
+            call(context);
+        } catch (CommandInterruptException e) {
+            e.getAction().accept(context.sender());
         }
+        return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        CommandContext<CommandSender> context = new ImmutableCommandContext<>(sender, label, args, command.getAliases());
+        try {
+            return callTabCompleter(context);
+        } catch (CommandInterruptException e) {
+            e.getAction().accept(context.sender());
+        }
+        return null;
     }
 }

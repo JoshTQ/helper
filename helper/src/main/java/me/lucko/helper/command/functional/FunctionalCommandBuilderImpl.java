@@ -40,30 +40,54 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 @NonnullByDefault
 class FunctionalCommandBuilderImpl<T extends CommandSender> implements FunctionalCommandBuilder<T> {
     private final ImmutableList.Builder<Predicate<CommandContext<?>>> predicates;
+    private @Nullable FunctionalTabHandler tabHandler;
+    private @Nullable String permission;
+    private @Nullable String permissionMessage;
+    private @Nullable String description;
 
-    private FunctionalCommandBuilderImpl(ImmutableList.Builder<Predicate<CommandContext<?>>> predicates) {
+    private FunctionalCommandBuilderImpl(ImmutableList.Builder<Predicate<CommandContext<?>>> predicates, @Nullable FunctionalTabHandler tabHandler, @Nullable String permission, @Nullable String permissionMessage, @Nullable String description) {
         this.predicates = predicates;
+        this.tabHandler = tabHandler;
+        this.permission = permission;
+        this.permissionMessage = permissionMessage;
+        this.description = description;
     }
 
     FunctionalCommandBuilderImpl() {
-        this(ImmutableList.builder());
+        this(ImmutableList.builder(), null, null, null, null);
+    }
+
+    public FunctionalCommandBuilder<T> description(String description) {
+        Objects.requireNonNull(description, "description");
+        this.description = description;
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public FunctionalCommandBuilder<T> assertFunction(Predicate<? super CommandContext<? extends T>> test, @Nullable String failureMessage) {
+        this.predicates.add(context -> {
+            if (test.test((CommandContext<? extends T>) context)) {
+                return true;
+            }
+            if (failureMessage != null) {
+                context.reply(failureMessage);
+            }
+            return false;
+        });
+        return this;
     }
 
     @Override
-    public FunctionalCommandBuilder<T> assertPermission(String permission, String failureMessage) {
+    public FunctionalCommandBuilder<T> assertPermission(String permission, @Nullable String failureMessage) {
         Objects.requireNonNull(permission, "permission");
-        Objects.requireNonNull(failureMessage, "failureMessage");
-        this.predicates.add(context -> {
-            if (context.sender().hasPermission(permission)) {
-                return true;
-            }
-
-            context.reply(failureMessage);
-            return false;
-        });
+        this.permission = permission;
+        this.permissionMessage = failureMessage;
         return this;
     }
 
@@ -93,7 +117,7 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
             return false;
         });
         // cast the generic type
-        return new FunctionalCommandBuilderImpl<>(this.predicates);
+        return new FunctionalCommandBuilderImpl<>(this.predicates, this.tabHandler, this.permission, this.permissionMessage, this.description);
     }
 
     @Override
@@ -108,7 +132,7 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
             return false;
         });
         // cast the generic type
-        return new FunctionalCommandBuilderImpl<>(this.predicates);
+        return new FunctionalCommandBuilderImpl<>(this.predicates, this.tabHandler, this.permission, this.permissionMessage, this.description);
     }
 
     @Override
@@ -173,8 +197,14 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
     }
 
     @Override
+    public FunctionalCommandBuilder<T> tabHandler(FunctionalTabHandler tabHandler) {
+        this.tabHandler = tabHandler;
+        return this;
+    }
+
+    @Override
     public Command handler(FunctionalCommandHandler handler) {
         Objects.requireNonNull(handler, "handler");
-        return new FunctionalCommand(this.predicates.build(), handler);
+        return new FunctionalCommand(this.predicates.build(), handler, tabHandler, permission, permissionMessage, description);
     }
 }

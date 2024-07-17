@@ -25,67 +25,167 @@
 
 package me.lucko.helper.sql.plugin;
 
+import com.google.common.collect.ImmutableMap;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 import me.lucko.helper.sql.DatabaseCredentials;
 import me.lucko.helper.sql.Sql;
+import me.lucko.helper.sql.batch.BatchBuilder;
+
+import org.intellij.lang.annotations.Language;
+
+import be.bendem.sqlstreams.SqlStream;
+import be.bendem.sqlstreams.util.SqlConsumer;
+import be.bendem.sqlstreams.util.SqlFunction;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
 public class HelperSql implements Sql {
-    private static final AtomicInteger COUNTER = new AtomicInteger(0);
 
-    private final HikariDataSource hikari;
+    private static final AtomicInteger POOL_COUNTER = new AtomicInteger(0);
+
+    // https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing
+    private static final int MAXIMUM_POOL_SIZE = (Runtime.getRuntime().availableProcessors() * 2) + 1;
+    private static final int MINIMUM_IDLE = Math.min(MAXIMUM_POOL_SIZE, 10);
+
+    private static final long MAX_LIFETIME = TimeUnit.MINUTES.toMillis(30);
+    private static final long CONNECTION_TIMEOUT = TimeUnit.SECONDS.toMillis(10);
+    private static final long LEAK_DETECTION_THRESHOLD = TimeUnit.SECONDS.toMillis(10);
+
+    private final HikariDataSource source;
+    private final SqlStream stream;
 
     public HelperSql(@Nonnull DatabaseCredentials credentials) {
-        HikariConfig config = new HikariConfig();
+        final HikariConfig hikari = new HikariConfig();
 
-        config.setMaximumPoolSize(25);
+        hikari.setPoolName("helper-sql-" + POOL_COUNTER.getAndIncrement());
 
-        config.setPoolName("helper-sql-" + COUNTER.getAndIncrement());
-        config.setDataSourceClassName("org.mariadb.jdbc.MySQLDataSource");
-        config.addDataSourceProperty("serverName", credentials.getAddress());
-        config.addDataSourceProperty("port", credentials.getPort());
-        config.addDataSourceProperty("databaseName", credentials.getDatabase());
-        config.setUsername(credentials.getUsername());
-        config.setPassword(credentials.getPassword());
+        hikari.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        hikari.setJdbcUrl("jdbc:mysql://" + credentials.getAddress() + ":" + credentials.getPort() + "/" + credentials.getDatabase());
 
-        // hack for the mariadb driver
-        config.addDataSourceProperty("properties", "useUnicode=true;characterEncoding=utf8");
+        hikari.setUsername(credentials.getUsername());
+        hikari.setPassword(credentials.getPassword());
 
-        // We will wait for 15 seconds to get a connection from the pool.
-        // Default is 30, but it shouldn't be taking that long.
-        config.setConnectionTimeout(TimeUnit.SECONDS.toMillis(15)); // 15000
+        hikari.setMaximumPoolSize(MAXIMUM_POOL_SIZE);
+        hikari.setMinimumIdle(MINIMUM_IDLE);
 
-        // If a connection is not returned within 10 seconds, it's probably safe to assume it's been leaked.
-        config.setLeakDetectionThreshold(TimeUnit.SECONDS.toMillis(10)); // 10000
+        hikari.setMaxLifetime(MAX_LIFETIME);
+        hikari.setConnectionTimeout(CONNECTION_TIMEOUT);
+        hikari.setLeakDetectionThreshold(LEAK_DETECTION_THRESHOLD);
 
-        this.hikari = new HikariDataSource(config);
+        Map<String, String> properties = ImmutableMap.<String, String>builder()
+                // Ensure we use utf8 encoding
+                .put("useUnicode", "true")
+                .put("characterEncoding", "utf8")
+
+                // https://github.com/brettwooldridge/HikariCP/wiki/MySQL-Configuration
+                .put("cachePrepStmts", "true")
+                .put("prepStmtCacheSize", "250")
+                .put("prepStmtCacheSqlLimit", "2048")
+                .put("useServerPrepStmts", "true")
+                .put("useLocalSessionState", "true")
+                .put("rewriteBatchedStatements", "true")
+                .put("cacheResultSetMetadata", "true")
+                .put("cacheServerConfiguration", "true")
+                .put("elideSetAutoCommits", "true")
+                .put("maintainTimeStats", "false")
+                .put("alwaysSendSetIsolation", "false")
+                .put("cacheCallableStmts", "true")
+
+                // Set the driver level TCP socket timeout
+                // See: https://github.com/brettwooldridge/HikariCP/wiki/Rapid-Recovery
+                .put("socketTimeout", String.valueOf(TimeUnit.SECONDS.toMillis(30)))
+                .build();
+
+        for (Map.Entry<String, String> property : properties.entrySet()) {
+            hikari.addDataSourceProperty(property.getKey(), property.getValue());
+        }
+
+        this.source = new HikariDataSource(hikari);
+        this.stream = SqlStream.connect(this.source);
     }
 
     @Nonnull
     @Override
     public HikariDataSource getHikari() {
-        return Objects.requireNonNull(this.hikari, "hikari");
+        return this.source;
     }
 
     @Nonnull
     @Override
     public Connection getConnection() throws SQLException {
-        return Objects.requireNonNull(getHikari().getConnection(), "connection is null");
+        return Objects.requireNonNull(this.source.getConnection(), "connection is null");
+    }
+
+    @Nonnull
+    @Override
+    public SqlStream stream() {
+        return this.stream;
+    }
+
+    @Override
+    public void execute(@Language("MySQL") @Nonnull String statement, @Nonnull SqlConsumer<PreparedStatement> preparer) {
+        try (Connection c = this.getConnection(); PreparedStatement s = c.prepareStatement(statement)) {
+            preparer.accept(s);
+            s.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public <R> Optional<R> query(@Language("MySQL") @Nonnull String query, @Nonnull SqlConsumer<PreparedStatement> preparer, @Nonnull SqlFunction<ResultSet, R> handler) {
+        try (Connection c = this.getConnection(); PreparedStatement s = c.prepareStatement(query)) {
+            preparer.accept(s);
+            try (ResultSet r = s.executeQuery()) {
+                return Optional.ofNullable(handler.apply(r));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public void executeBatch(@Nonnull BatchBuilder builder) {
+        if (builder.getHandlers().isEmpty()) {
+            return;
+        }
+
+        if (builder.getHandlers().size() == 1) {
+            this.execute(builder.getStatement(), builder.getHandlers().iterator().next());
+            return;
+        }
+
+        try (Connection c = this.getConnection(); PreparedStatement s = c.prepareStatement(builder.getStatement())) {
+            for (SqlConsumer<PreparedStatement> handlers : builder.getHandlers()) {
+                handlers.accept(s);
+                s.addBatch();
+            }
+            s.executeBatch();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public BatchBuilder batch(@Language("MySQL") @Nonnull String statement) {
+        return new HelperSqlBatchBuilder(this, statement);
     }
 
     @Override
     public void close() {
-        if (this.hikari != null) {
-            this.hikari.close();
-        }
+        this.source.close();
     }
 }

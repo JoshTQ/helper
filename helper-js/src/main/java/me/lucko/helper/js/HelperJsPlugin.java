@@ -51,7 +51,8 @@ import me.lucko.scriptcontroller.logging.SystemLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfo;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -79,19 +80,21 @@ import javax.annotation.Nonnull;
 @HelperImplementationPlugin
 public class HelperJsPlugin extends ExtendedJavaPlugin implements HelperJs {
 
-    /**
-     * The packages to import by default when each script is executed.
-     * These strings are pattern specs for the FastClasspathScanner.
-     */
-    private static final String[] DEFAULT_IMPORTS = new String[]{
-            // import all of the packages in helper
+    private static final String[] DEFAULT_IMPORT_INCLUDES = new String[]{
+            // include all of the packages in helper
             "me.lucko.helper",
-            // import all of the packages in bukkit
+            "com.flowpowered.math",
+            "net.jodah.expiringmap",
+            // include all of the packages in bukkit
             "org.bukkit",
+            "com.destroystokyo.paper",
+            "org.spigotmc.event"
+    };
+    private static final String[] DEFAULT_IMPORT_EXCLUDES = new String[]{
             // exclude craftbukkit classes
-            "-org.bukkit.craftbukkit",
+            "org.bukkit.craftbukkit",
             // exclude helper-js dependencies (the classpath scanner itself)
-            "-me.lucko.helper.js.external"
+            "me.lucko.helper.js.external"
     };
 
     private ScriptController controller;
@@ -105,19 +108,19 @@ public class HelperJsPlugin extends ExtendedJavaPlugin implements HelperJs {
 
         // search for packages which match the default import patterns
         getLogger().info("Scanning the classpath to resolve default package imports...");
-        FastClasspathScanner classpathScanner = new FastClasspathScanner(DEFAULT_IMPORTS).strictWhitelist();
+
+        ClassGraph classGraph = new ClassGraph()
+                .whitelistPackages(DEFAULT_IMPORT_INCLUDES)
+                .blacklistPackages(DEFAULT_IMPORT_EXCLUDES)
+                .addClassLoader(getServer().getClass().getClassLoader());
 
         // add the classloaders for helper implementation plugins
-        LoaderUtils.getHelperImplementationPlugins().forEach(pl -> classpathScanner.addClassLoader(pl.getClass().getClassLoader()));
+        LoaderUtils.getHelperImplementationPlugins().forEach(pl -> classGraph.addClassLoader(pl.getClass().getClassLoader()));
 
-        // form a list of matches packages
-        Set<String> defaultPackages = classpathScanner.scan()
-                .getNamesOfAllClasses()
+        Set<String> defaultPackages = classGraph.scan()
+                .getAllClasses()
                 .stream()
-                .map(className -> {
-                    // convert to a package name
-                    return className.substring(0, className.lastIndexOf('.'));
-                })
+                .map(ClassInfo::getPackageName)
                 .collect(Collectors.toSet());
 
         // setup the script controller

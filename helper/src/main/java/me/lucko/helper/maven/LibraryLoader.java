@@ -25,13 +25,15 @@
 
 package me.lucko.helper.maven;
 
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
+
 import me.lucko.helper.internal.LoaderUtils;
 import me.lucko.helper.utils.Log;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import java.io.File;
 import java.io.InputStream;
-import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -44,15 +46,9 @@ import java.util.Objects;
  */
 @NonnullByDefault
 public final class LibraryLoader {
-    private static final Method ADD_URL_METHOD;
-    static {
-        try {
-            ADD_URL_METHOD = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
-            ADD_URL_METHOD.setAccessible(true);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException(e);
-        }
-    }
+
+    @SuppressWarnings("Guava")
+    private static final Supplier<URLClassLoaderAccess> URL_INJECTOR = Suppliers.memoize(() -> URLClassLoaderAccess.create((URLClassLoader) LoaderUtils.getPlugin().getClass().getClassLoader()));
 
     /**
      * Resolves all {@link MavenLibrary} annotations on the given object.
@@ -80,7 +76,7 @@ public final class LibraryLoader {
     }
 
     public static void load(String groupId, String artifactId, String version) {
-        load(groupId, artifactId, version, "http://repo1.maven.org/maven2");
+        load(groupId, artifactId, version, "https://repo1.maven.org/maven2");
     }
 
     public static void load(String groupId, String artifactId, String version, String repoUrl) {
@@ -113,9 +109,8 @@ public final class LibraryLoader {
             throw new RuntimeException("Unable to download dependency: " + d.toString());
         }
 
-        URLClassLoader classLoader = (URLClassLoader) LoaderUtils.getPlugin().getClass().getClassLoader();
         try {
-            ADD_URL_METHOD.invoke(classLoader, saveLocation.toURI().toURL());
+            URL_INJECTOR.get().addURL(saveLocation.toURI().toURL());
         } catch (Exception e) {
             throw new RuntimeException("Unable to load dependency: " + saveLocation.toString(), e);
         }

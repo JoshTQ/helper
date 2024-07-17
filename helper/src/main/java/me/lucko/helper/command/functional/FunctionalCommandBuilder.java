@@ -26,6 +26,7 @@
 package me.lucko.helper.command.functional;
 
 import me.lucko.helper.command.Command;
+import me.lucko.helper.command.context.CommandContext;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import org.bukkit.command.CommandSender;
@@ -33,6 +34,8 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.function.Predicate;
+
+import javax.annotation.Nullable;
 
 /**
  * Functional builder API for {@link Command}
@@ -43,7 +46,6 @@ import java.util.function.Predicate;
 public interface FunctionalCommandBuilder<T extends CommandSender> {
     
     // Default failure messages
-    String DEFAULT_NO_PERMISSION_MESSAGE = "&cYou do not have permission to use this command.";
     String DEFAULT_NOT_OP_MESSAGE = "&cOnly server operators are able to use this command.";
     String DEFAULT_NOT_PLAYER_MESSAGE = "&cOnly players are able to use this command.";
     String DEFAULT_NOT_CONSOLE_MESSAGE = "&cThis command is only available through the server console.";
@@ -56,6 +58,33 @@ public interface FunctionalCommandBuilder<T extends CommandSender> {
     }
 
     /**
+     * Sets the command description to the specified one.
+     *
+     * @param description the command description
+     * @return the builder instance
+     */
+    FunctionalCommandBuilder<T> description(String description);
+
+    /**
+     * Asserts that some function returns true.
+     *
+     * @param test the test to run
+     * @return the builder instance
+     */
+    default FunctionalCommandBuilder<T> assertFunction(Predicate<? super CommandContext<? extends T>> test) {
+        return assertFunction(test, null);
+    }
+
+    /**
+     * Asserts that some function returns true.
+     *
+     * @param test the test to run
+     * @param failureMessage the failure message if the test fails
+     * @return the builder instance
+     */
+    FunctionalCommandBuilder<T> assertFunction(Predicate<? super CommandContext<? extends T>> test, @Nullable String failureMessage);
+
+    /**
      * Asserts that the sender has the specified permission, and sends them the default failure message
      * if they don't have permission.
      *
@@ -63,7 +92,7 @@ public interface FunctionalCommandBuilder<T extends CommandSender> {
      * @return the builder instance
      */
     default FunctionalCommandBuilder<T> assertPermission(String permission) {
-        return assertPermission(permission, DEFAULT_NO_PERMISSION_MESSAGE);
+        return assertPermission(permission, null);
     }
 
     /**
@@ -74,7 +103,7 @@ public interface FunctionalCommandBuilder<T extends CommandSender> {
      * @param failureMessage the failure message to send if they don't have permission
      * @return the builder instance
      */
-    FunctionalCommandBuilder<T> assertPermission(String permission, String failureMessage);
+    FunctionalCommandBuilder<T> assertPermission(String permission, @Nullable String failureMessage);
 
     /**
      * Asserts that the sender is op, and sends them the default failure message if they're not.
@@ -209,6 +238,14 @@ public interface FunctionalCommandBuilder<T extends CommandSender> {
      * @return the builder instance
      */
     FunctionalCommandBuilder<T> assertSender(Predicate<T> test, String failureMessage);
+
+    /**
+     * Sets the tab handler to the provided one.
+     *
+     * @param tabHandler the tab handler
+     * @return the builder instance
+     */
+    FunctionalCommandBuilder<T> tabHandler(FunctionalTabHandler<T> tabHandler);
 
     /**
      * Builds this {@link FunctionalCommandBuilder} into a {@link Command} instance.

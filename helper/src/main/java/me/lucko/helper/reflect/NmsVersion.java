@@ -25,14 +25,13 @@
 
 package me.lucko.helper.reflect;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
-import java.util.Map;
-import java.util.Set;
+import me.lucko.helper.utils.Indexing;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * An emumeration of NMS versions.
@@ -81,6 +80,51 @@ public enum NmsVersion {
             MinecraftVersion.of(1, 12, 0),
             MinecraftVersion.of(1, 12, 1),
             MinecraftVersion.of(1, 12, 2)
+    ),
+    v1_13_R1(
+            MinecraftVersion.of(1, 13, 0)
+    ),
+    v1_13_R2(
+            MinecraftVersion.of(1, 13, 1),
+            MinecraftVersion.of(1, 13, 2)
+    ),
+    v1_14_R1(
+            MinecraftVersion.of(1, 14, 0),
+            MinecraftVersion.of(1, 14, 1),
+            MinecraftVersion.of(1, 14, 2),
+            MinecraftVersion.of(1, 14, 3),
+            MinecraftVersion.of(1, 14, 4)
+    ),
+    v1_15_R1(
+            MinecraftVersion.of(1, 15, 0),
+            MinecraftVersion.of(1, 15, 1),
+            MinecraftVersion.of(1, 15, 2)
+    ),
+    v1_16_R1(
+            MinecraftVersion.of(1, 16, 0),
+            MinecraftVersion.of(1, 16, 1)
+    ),
+    v1_16_R2(
+            MinecraftVersion.of(1, 16, 2),
+            MinecraftVersion.of(1, 16, 3)
+    ),
+    v1_16_R3(
+            MinecraftVersion.of(1, 16, 4),
+            MinecraftVersion.of(1, 16, 5)
+    ),
+    v1_17_R1(
+            MinecraftVersion.of(1, 17, 0),
+            MinecraftVersion.of(1, 17, 1)
+    ),
+    v1_18_R1(
+            MinecraftVersion.of(1, 18, 0),
+            MinecraftVersion.of(1, 18, 1),
+            MinecraftVersion.of(1, 18, 2)
+    ),
+    v1_19_R1(
+            MinecraftVersion.of(1, 19, 0),
+            MinecraftVersion.of(1, 19, 1),
+            MinecraftVersion.of(1, 19, 2)
     );
 
     private final Set<MinecraftVersion> minecraftVersions;
@@ -152,18 +196,7 @@ public enum NmsVersion {
         return Class.forName(obc(className));
     }
 
-
-
-    private static final Map<MinecraftVersion, NmsVersion> MC_TO_NMS;
-    static {
-        ImmutableMap.Builder<MinecraftVersion, NmsVersion> mcToNms = ImmutableMap.builder();
-        for (NmsVersion v : values()) {
-            for (MinecraftVersion mcVersion : v.getMinecraftVersions()) {
-                mcToNms.put(mcVersion, v);
-            }
-        }
-        MC_TO_NMS = mcToNms.build();
-    }
+    private static final Map<MinecraftVersion, NmsVersion> MC_TO_NMS = Indexing.buildMultiple(values(), NmsVersion::getMinecraftVersions);
 
     /**
      * Gets the {@link NmsVersion} for the given {@link MinecraftVersion}.

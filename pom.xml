@@ -50,10 +50,10 @@
         <skipTests>true</skipTests>
         <maven.test.skip>true</maven.test.skip>
 
-        <compiler.version>3.7.0</compiler.version>
-        <shade.version>3.1.0</shade.version>
-        <source.version>3.0.1</source.version>
-        <javadoc.version>2.10.4</javadoc.version>
+        <compiler.version>3.10.1</compiler.version>
+        <shade.version>3.2.4</shade.version>
+        <source.version>3.2.1</source.version>
+        <javadoc.version>3.3.2</javadoc.version>
 
         <bukkit.version>1.12.2-R0.1-SNAPSHOT</bukkit.version>
     </properties>
@@ -87,7 +87,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
+                        <version>3.0.1</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -116,6 +116,15 @@
         </profile>
     </profiles>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>${bukkit.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
     <repositories>
         <repository>
             <id>luck-repo</id>
@@ -123,7 +132,7 @@
         </repository>
         <repository>
             <id>spigot-repo</id>
-            <url>https://hub.spigotmc.org/nexus/content/groups/public/</url>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
     </repositories>
 

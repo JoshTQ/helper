@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.Nonnull;
 
@@ -52,9 +53,11 @@ public class HelperRedis implements Redis {
 
     private final JedisPool jedisPool;
     private final AbstractMessenger messenger;
+
+    private final Set<String> channels = new HashSet<>();
+    private final CompositeTerminable registry = CompositeTerminable.create();
+
     private PubSubListener listener = null;
-    private Set<String> channels = new HashSet<>();
-    private CompositeTerminable registry = CompositeTerminable.create();
 
     public HelperRedis(@Nonnull RedisCredentials credentials) {
         JedisPoolConfig config = new JedisPoolConfig();
@@ -84,7 +87,7 @@ public class HelperRedis implements Redis {
                 try (Jedis jedis = getJedis()) {
                     try {
                         HelperRedis.this.listener = new PubSubListener();
-                        jedis.psubscribe(HelperRedis.this.listener, "helper-redis-dummy".getBytes(StandardCharsets.UTF_8));
+                        jedis.subscribe(HelperRedis.this.listener, "helper-redis-dummy".getBytes(StandardCharsets.UTF_8));
                     } catch (Exception e) {
                         // Attempt to unsubscribe this instance and try again.
                         new RuntimeException("Error subscribing to listener", e).printStackTrace();
@@ -128,12 +131,12 @@ public class HelperRedis implements Redis {
                 channel -> {
                     Log.info("[helper-redis] Subscribing to channel: " + channel);
                     this.channels.add(channel);
-                    HelperRedis.this.listener.subscribe(channel.getBytes(StandardCharsets.UTF_8));
+                    this.listener.subscribe(channel.getBytes(StandardCharsets.UTF_8));
                 },
                 channel -> {
                     Log.info("[helper-redis] Unsubscribing from channel: " + channel);
                     this.channels.remove(channel);
-                    HelperRedis.this.listener.unsubscribe(channel.getBytes(StandardCharsets.UTF_8));
+                    this.listener.unsubscribe(channel.getBytes(StandardCharsets.UTF_8));
                 }
         );
     }
@@ -172,15 +175,31 @@ public class HelperRedis implements Redis {
     }
 
     private final class PubSubListener extends BinaryJedisPubSub {
-        private Set<String> subscribed = ConcurrentHashMap.newKeySet();
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Set<String> subscribed = ConcurrentHashMap.newKeySet();
 
         @Override
         public void subscribe(byte[]... channels) {
-            for (byte[] channel : channels) {
-                String channelName = new String(channel, StandardCharsets.UTF_8).intern();
-                if (this.subscribed.add(channelName)) {
-                    super.subscribe(channel);
+            this.lock.lock();
+            try {
+                for (byte[] channel : channels) {
+                    String channelName = new String(channel, StandardCharsets.UTF_8);
+                    if (this.subscribed.add(channelName)) {
+                        super.subscribe(channel);
+                    }
                 }
+            } finally {
+                this.lock.unlock();
+            }
+        }
+
+        @Override
+        public void unsubscribe(byte[]... channels) {
+            this.lock.lock();
+            try {
+                super.unsubscribe(channels);
+            } finally {
+                this.lock.unlock();
             }
         }
 

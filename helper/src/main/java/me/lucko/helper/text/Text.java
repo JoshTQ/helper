@@ -25,31 +25,30 @@
 
 package me.lucko.helper.text;
 
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.serializer.ComponentSerializers;
+import me.lucko.helper.text.adapter.bukkit.TextAdapter;
+import me.lucko.helper.text.serializer.ComponentSerializers;
 
 import org.bukkit.command.CommandSender;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * Utilities for working with {@link Component}s and formatted text strings.
+ *
+ * @deprecated Use {@link me.lucko.helper.text3.Text}
  */
-@SuppressWarnings("deprecation")
+@Deprecated
 public final class Text {
 
-    public static final char SECTION_CHAR = '\u00A7'; // §
-    public static final char AMPERSAND_CHAR = '&';
+    public static final char SECTION_CHAR = me.lucko.helper.text3.Text.SECTION_CHAR;
+    public static final char AMPERSAND_CHAR = me.lucko.helper.text3.Text.AMPERSAND_CHAR;
 
     public static String joinNewline(String... strings) {
-        return joinNewline(Arrays.stream(strings));
+        return me.lucko.helper.text3.Text.joinNewline(strings);
     }
 
     public static String joinNewline(Stream<String> strings) {
-        return strings.collect(Collectors.joining("\n"));
+        return me.lucko.helper.text3.Text.joinNewline(strings);
     }
 
     public static TextComponent fromLegacy(String input, char character) {
@@ -69,30 +68,23 @@ public final class Text {
     }
 
     public static void sendMessage(CommandSender sender, Component message) {
-        BukkitTextUtils.sendJsonMessage(sender, message);
+        TextAdapter.sendComponent(sender, message);
     }
 
     public static void sendMessage(Iterable<CommandSender> senders, Component message) {
-        BukkitTextUtils.sendJsonMessage(senders, message);
+        TextAdapter.sendComponent(senders, message);
     }
 
     public static String colorize(String s) {
-        return s == null ? null : translateAlternateColorCodes(AMPERSAND_CHAR, SECTION_CHAR, s);
+        return me.lucko.helper.text3.Text.colorize(s);
     }
 
     public static String decolorize(String s) {
-        return s == null ? null : translateAlternateColorCodes(SECTION_CHAR, AMPERSAND_CHAR, s);
+        return me.lucko.helper.text3.Text.decolorize(s);
     }
 
     public static String translateAlternateColorCodes(char from, char to, String textToTranslate) {
-        char[] b = textToTranslate.toCharArray();
-        for (int i = 0; i < b.length - 1; i++) {
-            if (b[i] == from && "0123456789AaBbCcDdEeFfKkLlMmNnOoRr".indexOf(b[i+1]) > -1) {
-                b[i] = to;
-                b[i+1] = Character.toLowerCase(b[i+1]);
-            }
-        }
-        return new String(b);
+        return me.lucko.helper.text3.Text.translateAlternateColorCodes(from, to, textToTranslate);
     }
 
     private Text() {

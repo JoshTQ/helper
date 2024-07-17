@@ -25,49 +25,51 @@
 
 package me.lucko.helper.lilypad.extended;
 
+import me.lucko.helper.Events;
+import me.lucko.helper.Schedulers;
 import me.lucko.helper.lilypad.LilyPad;
-import me.lucko.helper.profiles.Profile;
-import me.lucko.helper.terminable.Terminable;
+import me.lucko.helper.messaging.util.ChannelReceiver;
+import me.lucko.helper.network.AbstractNetwork;
+import me.lucko.helper.network.event.ServerDisconnectEvent;
 
-import java.util.Map;
-import java.util.UUID;
+import org.bukkit.event.server.PluginDisableEvent;
 
-/**
- * Represents the interface for an extended LilyPad network.
- */
-public interface LilyPadNetwork extends Terminable {
+import lilypad.client.connect.api.request.RequestException;
+import lilypad.client.connect.api.request.impl.GetPlayersRequest;
+import lilypad.client.connect.api.result.FutureResult;
+import lilypad.client.connect.api.result.impl.GetPlayersResult;
 
-    /**
-     * Creates a new {@link LilyPadNetwork} instance. These should be shared if possible.
-     *
-     * @param lilyPad the lilypad instance
-     * @return the new network
-     */
-    static LilyPadNetwork create(LilyPad lilyPad) {
-        return new LilyPadNetworkImpl(lilyPad);
+import java.util.concurrent.TimeUnit;
+
+public class LilyPadNetwork extends AbstractNetwork {
+    private ChannelReceiver<Integer> overallPlayerCount = new ChannelReceiver<>(5, TimeUnit.SECONDS);
+
+    public LilyPadNetwork(LilyPad lilyPad) {
+        super(lilyPad, lilyPad);
+
+        // register a fallback disconnect listener
+        Events.subscribe(PluginDisableEvent.class)
+                .filter(e -> e.getPlugin().getName().equals("LilyPad-Connect"))
+                .handler(e -> postEvent(new ServerDisconnectEvent(lilyPad.getId(), "stopping")));
+
+        // cache overall player count
+        Schedulers.builder()
+                .async()
+                .afterAndEvery(3, TimeUnit.SECONDS)
+                .run(() -> {
+                    try {
+                        FutureResult<GetPlayersResult> request = lilyPad.getConnect().request(new GetPlayersRequest());
+                        request.registerListener(result -> this.overallPlayerCount.set(result.getCurrentPlayers()));
+                    } catch (RequestException e) {
+                        e.printStackTrace();
+                    }
+                })
+                .bindWith(this.compositeTerminable);
     }
 
-    /**
-     * Gets the known servers in the network
-     *
-     * @return the known servers
-     */
-    Map<String, LilyPadServer> getServers();
-
-    /**
-     * Gets the players known to be online in the network.
-     *
-     * @return the known online players
-     */
-    Map<UUID, Profile> getOnlinePlayers();
-
-    /**
-     * Gets a cached overall player count
-     *
-     * @return the player count
-     */
-    int getOverallPlayerCount();
-
     @Override
-    void close();
+    public int getOverallPlayerCount() {
+        return this.overallPlayerCount.getValue().orElse(0);
+    }
+
 }

@@ -27,20 +27,17 @@ package me.lucko.helper;
 
 import me.lucko.helper.interfaces.Delegate;
 import me.lucko.helper.internal.LoaderUtils;
+import me.lucko.helper.internal.exception.HelperExceptions;
 import me.lucko.helper.promise.ThreadContext;
 import me.lucko.helper.scheduler.HelperExecutors;
 import me.lucko.helper.scheduler.Scheduler;
 import me.lucko.helper.scheduler.Task;
 import me.lucko.helper.scheduler.Ticks;
 import me.lucko.helper.scheduler.builder.TaskBuilder;
-import me.lucko.helper.timings.Timings;
-import me.lucko.helper.utils.Log;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitScheduler;
-
-import co.aikar.timings.lib.MCTiming;
 
 import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
@@ -171,16 +168,14 @@ public final class Schedulers {
         }
     }
 
-    private static class HelperTask extends BukkitRunnable implements Task {
+    private static class HelperTask extends BukkitRunnable implements Task, Delegate<Consumer<Task>> {
         private final Consumer<Task> backingTask;
-        private final MCTiming timing;
 
         private final AtomicInteger counter = new AtomicInteger(0);
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
         private HelperTask(Consumer<Task> backingTask) {
             this.backingTask = backingTask;
-            this.timing = Timings.of("helper-scheduler: " + Delegate.resolve(backingTask).getClass().getName());
         }
 
         @Override
@@ -190,12 +185,11 @@ public final class Schedulers {
                 return;
             }
 
-            try (MCTiming t = this.timing.startTiming()) {
+            try {
                 this.backingTask.accept(this);
                 this.counter.incrementAndGet();
             } catch (Throwable e) {
-                Log.severe("[SCHEDULER] Exception thrown whilst executing task");
-                e.printStackTrace();
+                HelperExceptions.reportScheduler(e);
             }
 
             if (this.cancelled.get()) {
@@ -222,9 +216,14 @@ public final class Schedulers {
         public boolean isClosed() {
             return this.cancelled.get();
         }
+
+        @Override
+        public Consumer<Task> getDelegate() {
+            return this.backingTask;
+        }
     }
 
-    private static class HelperAsyncTask implements Runnable, Task {
+    private static class HelperAsyncTask implements Runnable, Task, Delegate<Consumer<Task>> {
         private final Consumer<Task> backingTask;
         private final ScheduledFuture<?> future;
 
@@ -246,8 +245,7 @@ public final class Schedulers {
                 this.backingTask.accept(this);
                 this.counter.incrementAndGet();
             } catch (Throwable e) {
-                Log.severe("[SCHEDULER] Exception thrown whilst executing task");
-                e.printStackTrace();
+                HelperExceptions.reportScheduler(e);
             }
         }
 
@@ -274,6 +272,11 @@ public final class Schedulers {
         @Override
         public boolean isClosed() {
             return this.cancelled.get();
+        }
+
+        @Override
+        public Consumer<Task> getDelegate() {
+            return this.backingTask;
         }
     }
 

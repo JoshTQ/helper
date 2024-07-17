@@ -25,16 +25,12 @@
 
 package me.lucko.helper.menu.scheme;
 
-import com.google.common.collect.ImmutableMap;
-
+import com.google.common.collect.Range;
 import me.lucko.helper.item.ItemStackBuilder;
-import me.lucko.helper.menu.Item;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
-
 import org.bukkit.Material;
 
-import java.util.Map;
-import java.util.function.IntFunction;
+import java.util.Arrays;
 
 /**
  * Contains a number of default {@link SchemeMapping}s.
@@ -42,39 +38,39 @@ import java.util.function.IntFunction;
 @NonnullByDefault
 public final class StandardSchemeMappings {
 
-    public static final SchemeMapping STAINED_GLASS = forColoredMaterial(Material.STAINED_GLASS_PANE);
-    public static final SchemeMapping STAINED_GLASS_BLOCK = forColoredMaterial(Material.STAINED_GLASS);
-    public static final SchemeMapping HARDENED_CLAY = forColoredMaterial(Material.STAINED_CLAY);
-    public static final SchemeMapping WOOL = forColoredMaterial(Material.WOOL);
+    private static final Range<Integer> COLORED_MATERIAL_RANGE = Range.closed(0, 15);
+    private static final String[] BLOCK_COLORS = {
+            "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
+            "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK",
+    };
+
+    public static final SchemeMapping STAINED_GLASS = forColoredMaterial("STAINED_GLASS_PANE", "_STAINED_GLASS_PANE");
+    public static final SchemeMapping STAINED_GLASS_BLOCK = forColoredMaterial("STAINED_GLASS", "_STAINED_GLASS");
+    public static final SchemeMapping HARDENED_CLAY = forColoredMaterial("STAINED_CLAY", "_TERRACOTTA");
+    public static final SchemeMapping WOOL = forColoredMaterial("WOOL", "_WOOL");
     public static final SchemeMapping EMPTY = new EmptySchemeMapping();
 
-    private static SchemeMapping forColoredMaterial(Material material) {
-        final IntFunction<Item> func = value -> ItemStackBuilder.of(material).name("&f").data(value).build(null);
+    private static SchemeMapping forColoredMaterial(String legacyName, String modernSuffix) {
+        Material material = Material.getMaterial(legacyName);
 
-        Map<Integer, Item> map = ImmutableMap.<Integer, Item>builder()
-                .put(0, func.apply(0))
-                .put(1, func.apply(1))
-                .put(2, func.apply(2))
-                .put(3, func.apply(3))
-                .put(4, func.apply(4))
-                .put(5, func.apply(5))
-                .put(6, func.apply(6))
-                .put(7, func.apply(7))
-                .put(8, func.apply(8))
-                .put(9, func.apply(9))
-                .put(10, func.apply(10))
-                .put(11, func.apply(11))
-                .put(12, func.apply(12))
-                .put(13, func.apply(13))
-                .put(14, func.apply(14))
-                .put(15, func.apply(15))
-                .build();
+        if (material != null) {
+            return FunctionalSchemeMapping.of(
+                    data -> ItemStackBuilder.of(material).name("&f").data(data).build(null),
+                    COLORED_MATERIAL_RANGE
+            );
+        }
 
-        return AbstractSchemeMapping.of(map);
+        Material[] materials = Arrays.stream(BLOCK_COLORS)
+                .map(color -> Material.valueOf(color + modernSuffix))
+                .toArray(Material[]::new);
+
+        return FunctionalSchemeMapping.of(
+                data -> ItemStackBuilder.of(materials[data]).name("&f").build(null),
+                COLORED_MATERIAL_RANGE
+        );
     }
 
     private StandardSchemeMappings() {
         throw new UnsupportedOperationException("This class cannot be instantiated");
     }
-
 }

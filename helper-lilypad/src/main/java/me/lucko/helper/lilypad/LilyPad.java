@@ -27,6 +27,8 @@ package me.lucko.helper.lilypad;
 
 import me.lucko.helper.messaging.InstanceData;
 import me.lucko.helper.messaging.Messenger;
+import me.lucko.helper.network.redirect.PlayerRedirector;
+import me.lucko.helper.profiles.Profile;
 
 import org.bukkit.entity.Player;
 
@@ -37,12 +39,12 @@ import javax.annotation.Nonnull;
 /**
  * Represents a hook with LilyPad {@link Connect}.
  */
-public interface LilyPad extends Messenger, InstanceData {
+public interface LilyPad extends Messenger, InstanceData, PlayerRedirector {
 
     /**
-     * Gets the JedisPool instance backing the redis instance
+     * Gets the Connect instance
      *
-     * @return the JedisPool instance
+     * @return the Connect instance
      */
     @Nonnull
     Connect getConnect();
@@ -65,4 +67,8 @@ public interface LilyPad extends Messenger, InstanceData {
         redirectPlayer(serverId, player.getName());
     }
 
+    @Override
+    default void redirectPlayer(String serverId, Profile profile) {
+        redirectPlayer(serverId, profile.getName().orElseThrow(() -> new IllegalArgumentException("Username must be set")));
+    }
 }

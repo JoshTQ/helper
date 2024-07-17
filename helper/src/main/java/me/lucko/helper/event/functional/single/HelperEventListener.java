@@ -27,8 +27,6 @@ package me.lucko.helper.event.functional.single;
 
 import me.lucko.helper.Helper;
 import me.lucko.helper.event.SingleSubscription;
-import me.lucko.helper.interfaces.Delegate;
-import me.lucko.helper.timings.Timings;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
@@ -37,16 +35,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
-import co.aikar.timings.lib.MCTiming;
-
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -55,14 +53,13 @@ class HelperEventListener<T extends Event> implements SingleSubscription<T>, Eve
     private final EventPriority priority;
 
     private final BiConsumer<? super T, Throwable> exceptionConsumer;
+    private final boolean handleSubclasses;
 
     private final Predicate<T>[] filters;
     private final BiPredicate<SingleSubscription<T>, T>[] preExpiryTests;
     private final BiPredicate<SingleSubscription<T>, T>[] midExpiryTests;
     private final BiPredicate<SingleSubscription<T>, T>[] postExpiryTests;
     private final BiConsumer<SingleSubscription<T>, ? super T>[] handlers;
-
-    private final MCTiming timing;
 
     private final AtomicLong callCount = new AtomicLong(0);
     private final AtomicBoolean active = new AtomicBoolean(true);
@@ -72,14 +69,13 @@ class HelperEventListener<T extends Event> implements SingleSubscription<T>, Eve
         this.eventClass = builder.eventClass;
         this.priority = builder.priority;
         this.exceptionConsumer = builder.exceptionConsumer;
+        this.handleSubclasses = builder.handleSubclasses;
 
         this.filters = builder.filters.toArray(new Predicate[builder.filters.size()]);
         this.preExpiryTests = builder.preExpiryTests.toArray(new BiPredicate[builder.preExpiryTests.size()]);
         this.midExpiryTests = builder.midExpiryTests.toArray(new BiPredicate[builder.midExpiryTests.size()]);
         this.postExpiryTests = builder.postExpiryTests.toArray(new BiPredicate[builder.postExpiryTests.size()]);
         this.handlers = handlers.toArray(new BiConsumer[handlers.size()]);
-
-        this.timing = Timings.of("helper-events: " + handlers.stream().map(handler -> Delegate.resolve(handler).getClass().getName()).collect(Collectors.joining(" | ")));
     }
 
     void register(Plugin plugin) {
@@ -89,8 +85,14 @@ class HelperEventListener<T extends Event> implements SingleSubscription<T>, Eve
     @Override
     public void execute(Listener listener, Event event) {
         // check we actually want this event
-        if (event.getClass() != this.eventClass) {
-            return;
+        if (this.handleSubclasses) {
+            if (!this.eventClass.isInstance(event)) {
+                return;
+            }
+        } else {
+            if (event.getClass() != this.eventClass) {
+                return;
+            }
         }
 
         // this handler is disabled, so unregister from the event.
@@ -112,7 +114,7 @@ class HelperEventListener<T extends Event> implements SingleSubscription<T>, Eve
         }
 
         // begin "handling" of the event
-        try (MCTiming t = this.timing.startTiming()) {
+        try {
             // check the filters
             for (Predicate<T> filter : this.filters) {
                 if (!filter.test(eventInstance)) {
@@ -184,6 +186,17 @@ class HelperEventListener<T extends Event> implements SingleSubscription<T>, Eve
         unregisterListener(this.eventClass, this);
 
         return true;
+    }
+
+    @Override
+    public Collection<Object> getFunctions() {
+        List<Object> functions = new ArrayList<>();
+        Collections.addAll(functions, this.filters);
+        Collections.addAll(functions, this.preExpiryTests);
+        Collections.addAll(functions, this.midExpiryTests);
+        Collections.addAll(functions, this.postExpiryTests);
+        Collections.addAll(functions, this.handlers);
+        return functions;
     }
 
     @SuppressWarnings("JavaReflectionMemberAccess")

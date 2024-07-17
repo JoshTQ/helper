@@ -27,8 +27,12 @@ package me.lucko.helper.lilypad.plugin;
 
 import me.lucko.helper.internal.HelperImplementationPlugin;
 import me.lucko.helper.lilypad.LilyPad;
+import me.lucko.helper.lilypad.extended.LilyPadNetwork;
 import me.lucko.helper.messaging.InstanceData;
 import me.lucko.helper.messaging.Messenger;
+import me.lucko.helper.network.Network;
+import me.lucko.helper.network.redirect.PlayerRedirector;
+import me.lucko.helper.network.redirect.RedirectSystem;
 import me.lucko.helper.plugin.ExtendedJavaPlugin;
 
 import lilypad.client.connect.api.Connect;
@@ -36,16 +40,27 @@ import lilypad.client.connect.api.Connect;
 @HelperImplementationPlugin
 public class HelperLilyPadPlugin extends ExtendedJavaPlugin {
 
+    private LilyPad globalLilyPad;
+
     @Override
     protected void enable() {
         Connect connect = getService(Connect.class);
-        LilyPad globalLilyPad = new HelperLilyPad(connect);
+        this.globalLilyPad = new HelperLilyPad(connect);
 
         // expose all instances as services.
-        provideService(LilyPad.class, globalLilyPad);
-        provideService(Messenger.class, globalLilyPad);
-        provideService(InstanceData.class, globalLilyPad);
+        provideService(LilyPad.class, this.globalLilyPad);
+        provideService(Messenger.class, this.globalLilyPad);
+        provideService(InstanceData.class, this.globalLilyPad);
+        provideService(PlayerRedirector.class, this.globalLilyPad);
 
         getLogger().info("Hooked with LilyPad-Connect");
+    }
+
+    public Network getNetwork() {
+        return Network.obtain(() -> new LilyPadNetwork(this.globalLilyPad));
+    }
+
+    public RedirectSystem getRedirectSystem() {
+        return RedirectSystem.obtain(() -> RedirectSystem.create(this.globalLilyPad));
     }
 }

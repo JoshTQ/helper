@@ -76,6 +76,13 @@ public @interface Plugin {
     PluginLoadOrder load() default PluginLoadOrder.POSTWORLD;
 
     /**
+     * The api version of the plugin
+     *
+     * @return the api version of the plugin
+     */
+    String apiVersion() default "";
+
+    /**
      * The authors of the plugin
      *
      * @return the author of the plugin
@@ -116,11 +123,16 @@ public @interface Plugin {
     String[] softDepends() default {};
 
     /**
-     * A list of plugins which should be loaded before this plugin
+     * A list of plugins which should be loaded after this plugin
      *
-     * @return a list of plugins which should be loaded before this plugin
+     * @return a list of plugins which should be loaded after this plugin
      */
     @Nonnull
     String[] loadBefore() default {};
 
+    /**
+     * Libraries from maven central which are loaded at runtime.
+     */
+    @Nonnull
+    String[] libraries() default {};
 }

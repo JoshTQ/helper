@@ -29,6 +29,8 @@ import me.lucko.helper.internal.LoaderUtils;
 
 import org.bukkit.Bukkit;
 
+import java.util.logging.Level;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -46,6 +48,14 @@ public final class Log {
 
     public static void severe(@Nonnull String s) {
         LoaderUtils.getPlugin().getLogger().severe(s);
+    }
+
+    public static void warn(@Nonnull String s, Throwable t) {
+        LoaderUtils.getPlugin().getLogger().log(Level.WARNING, s, t);
+    }
+
+    public static void severe(@Nonnull String s, Throwable t) {
+        LoaderUtils.getPlugin().getLogger().log(Level.SEVERE, s, t);
     }
 
     private Log() {

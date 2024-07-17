@@ -55,6 +55,7 @@ import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.server.PluginEnableEvent;
 
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -94,23 +95,28 @@ public class CitizensNpcFactory implements NpcFactory {
         // don't let players move npcs
         Events.subscribe(PlayerFishEvent.class)
                 .filter(e -> e.getCaught() != null)
-                .filter(e -> e.getCaught().hasMetadata("NPC"))
+                .filter(e -> isHelperNpc(e.getCaught()))
                 .handler(e -> e.setCancelled(true))
                 .bindWith(this.registry);
 
         /* Events.subscribe(ProjectileCollideEvent.class)
                 .filter(e -> e.getCollidedWith() != null)
-                .filter(e -> e.getCollidedWith().hasMetadata("NPC"))
+                .filter(e -> isHelperNpc(e.getCollidedWith()))
                 .handler(e -> e.setCancelled(true))
                 .bindWith(this.registry); */
 
         Events.subscribe(EntityDamageByEntityEvent.class)
-                .filter(e -> e.getEntity().hasMetadata("NPC"))
+                .filter(e -> isHelperNpc(e.getEntity()))
                 .handler(e -> e.setCancelled(true))
                 .bindWith(this.registry);
 
         // update npcs every 10 ticks
         Schedulers.sync().runRepeating(this::tickNpcs, 10L, 10L).bindWith(this.registry);
+    }
+
+    private boolean isHelperNpc(Entity entity) {
+        NPC npc = this.npcRegistry.getNPC(entity);
+        return npc != null && npc.hasTrait(ClickableTrait.class);
     }
 
     private void handleClick(NPC npc, Player clicker) {
@@ -169,6 +175,8 @@ public class CitizensNpcFactory implements NpcFactory {
     }
 
     private CitizensNpc spawnNpc(Location location, String nametag, Consumer<Npc> skin) {
+        Objects.requireNonNull(this.npcRegistry, "npcRegistry");
+
         // create a new npc
         NPC npc = this.npcRegistry.createNPC(EntityType.PLAYER, nametag);
 
@@ -189,7 +197,9 @@ public class CitizensNpcFactory implements NpcFactory {
 
     @Override
     public void close() {
-        this.npcRegistry.deregisterAll();
+        if (this.npcRegistry != null) {
+            this.npcRegistry.deregisterAll();
+        }
         this.registry.closeAndReportException();
     }
 

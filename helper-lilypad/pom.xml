@@ -12,7 +12,7 @@
 
     <artifactId>helper-lilypad</artifactId>
     <packaging>jar</packaging>
-    <version>2.1.0</version>
+    <version>3.0.0</version>
 
     <name>helper-lilypad</name>
     <description>Implements the helper Messaging system using LilyPad.</description>
@@ -92,13 +92,7 @@
         <dependency>
             <groupId>me.lucko</groupId>
             <artifactId>helper</artifactId>
-            <version>[5.0.0,6.0.0)</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.bukkit</groupId>
-            <artifactId>bukkit</artifactId>
-            <version>${bukkit.version}</version>
+            <version>[5.5.0,6.0.0)</version>
             <scope>provided</scope>
         </dependency>
 

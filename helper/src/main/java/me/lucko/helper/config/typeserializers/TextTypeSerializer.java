@@ -32,10 +32,9 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 
 import me.lucko.helper.gson.GsonProvider;
-
-import net.kyori.text.Component;
-import net.kyori.text.serializer.ComponentSerializers;
-import net.kyori.text.serializer.GsonComponentSerializer;
+import me.lucko.helper.text.Component;
+import me.lucko.helper.text.serializer.ComponentSerializers;
+import me.lucko.helper.text.serializer.GsonComponentSerializer;
 
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMappingException;
@@ -43,6 +42,7 @@ import ninja.leaping.configurate.objectmapping.serialize.TypeSerializer;
 
 import java.lang.reflect.Type;
 
+@Deprecated
 public class TextTypeSerializer implements TypeSerializer<Component> {
     private static final GsonComponentSerializer DELEGATE = (GsonComponentSerializer) ComponentSerializers.JSON;
 
